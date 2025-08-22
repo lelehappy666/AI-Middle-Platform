@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>删除功能调试</title>
+</head>
+<body>
+    <h1>删除功能调试</h1>
+    <button onclick="testDelete()">测试删除功能</button>
+    <div id="output"></div>
+    
+    <script>
+        async function testDelete() {
+            const output = document.getElementById('output');
+            output.innerHTML = '开始测试...<br>';
+            
+            try {
+                // 打开IndexedDB
+                const request = indexedDB.open('MediaLibraryDB', 1);
+                
+                request.onsuccess = async (event) => {
+                    const db = event.target.result;
+                    output.innerHTML += '数据库连接成功<br>';
+                    
+                    // 获取所有文件
+                    const transaction = db.transaction(['media_files'], 'readonly');
+                    const store = transaction.objectStore('media_files');
+                    const getAllRequest = store.getAll();
+                    
+                    getAllRequest.onsuccess = () => {
+                        const files = getAllRequest.result;
+                        output.innerHTML += `找到 ${files.length} 个文件<br>`;
+                        
+                        if (files.length > 0) {
+                            output.innerHTML += '文件列表:<br>';
+                            files.forEach(file => {
+                                output.innerHTML += `- ${file.name} (ID: ${file.id})<br>`;
+                            });
+                            
+                            // 测试删除第一个文件
+                            const firstFileId = files[0].id;
+                            output.innerHTML += `<br>尝试删除文件: ${firstFileId}<br>`;
+                            
+                            const deleteTransaction = db.transaction(['media_files'], 'readwrite');
+                            const deleteStore = deleteTransaction.objectStore('media_files');
+                            const deleteRequest = deleteStore.delete(firstFileId);
+                            
+                            deleteRequest.onsuccess = () => {
+                                output.innerHTML += '删除成功!<br>';
+                                
+                                // 再次获取文件列表确认删除
+                                const verifyTransaction = db.transaction(['media_files'], 'readonly');
+                                const verifyStore = verifyTransaction.objectStore('media_files');
+                                const verifyRequest = verifyStore.getAll();
+                                
+                                verifyRequest.onsuccess = () => {
+                                    const remainingFiles = verifyRequest.result;
+                                    output.innerHTML += `删除后剩余 ${remainingFiles.length} 个文件<br>`;
+                                };
+                            };
+                            
+                            deleteRequest.onerror = () => {
+                                output.innerHTML += '删除失败: ' + deleteRequest.error + '<br>';
+                            };
+                        } else {
+                            output.innerHTML += '没有文件可以删除<br>';
+                        }
+                    };
+                };
+                
+                request.onerror = () => {
+                    output.innerHTML += '数据库连接失败: ' + request.error + '<br>';
+                };
+                
+            } catch (error) {
+                output.innerHTML += '错误: ' + error.message + '<br>';
+            }
+        }
+    </script>
+</body>
+</html>
