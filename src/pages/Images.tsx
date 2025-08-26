@@ -478,7 +478,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({ image, images, currentIndex
 
 const Images: React.FC = () => {
   const {
-    filteredFiles,
+    getImageFiles,
     selectedFiles,
     viewMode,
     isLoading,
@@ -487,7 +487,7 @@ const Images: React.FC = () => {
     folders,
     currentFolderPath,
     loadFiles,
-    loadFolders,
+    loadImageFolders,
     addFilesWithProgress,
     addFilesWithFolder,
     toggleFileSelection,
@@ -507,9 +507,7 @@ const Images: React.FC = () => {
   const [folderProgress, setFolderProgress] = useState({ current: 0, total: 0, path: '' });
 
   // 根据当前视图模式获取对应的文件列表
-  const images = folderView.currentView === 'folders' 
-    ? filteredFiles.filter(file => file.type === 'image')
-    : getCurrentFolderFiles().filter(file => file.type === 'image');
+  const images = getImageFiles();
   
   // 根据当前视图模式计算正确的选中数量
   const selectedCount = folderView.currentView === 'folders'
@@ -520,8 +518,8 @@ const Images: React.FC = () => {
 
   useEffect(() => {
     loadFiles();
-    loadFolders();
-  }, [loadFiles, loadFolders]);
+    loadImageFolders();
+  }, [loadFiles, loadImageFolders]);
 
   const handleFileUpload = async () => {
     try {
@@ -544,7 +542,7 @@ const Images: React.FC = () => {
         
         // 重新加载文件和文件夹列表
         await loadFiles();
-        await loadFolders();
+        await loadImageFolders();
         
         alert(`成功上传 ${files.length} 张图片！`);
       }
@@ -565,10 +563,7 @@ const Images: React.FC = () => {
       
       const { selectDirectoryAndGetImages, isDirectoryPickerSupported } = await import('../lib/fileSystem');
       
-      if (!isDirectoryPickerSupported()) {
-        alert('您的浏览器不支持文件夹选择功能，请使用最新版本的Chrome、Edge或Firefox浏览器。');
-        return;
-      }
+      // 不再检查浏览器支持，因为已经有fallback方案
       
       const result = await selectDirectoryAndGetImages((current, total, path) => {
         setFolderProgress({ current, total, path });
@@ -591,7 +586,7 @@ const Images: React.FC = () => {
         
         // 重新加载文件和文件夹列表
         await loadFiles();
-        await loadFolders();
+        await loadImageFolders();
         
         alert(`成功从文件夹 "${result.directoryName}" 加载了 ${result.files.length} 张图片！`);
       } else {
@@ -663,7 +658,7 @@ const Images: React.FC = () => {
       }
       
       // 重新加载文件夹列表，确保空文件夹被移除
-      await loadFolders();
+      await loadImageFolders();
       console.log('🔥 [Images] 文件夹列表重新加载完成');
     } catch (error) {
       console.error('🔥 [Images] 删除图片失败:', error);

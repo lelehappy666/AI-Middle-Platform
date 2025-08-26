@@ -1,6 +1,46 @@
-# React + TypeScript + Vite
+# AI中台 - AI Middle Platform
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+一个基于React + TypeScript + Vite构建的AI中台系统，提供AI对话、录音分析、AI生成等功能。
+
+## 功能特性
+
+- 🤖 **AI对话**: 支持多种主流AI模型（OpenAI、Claude、Gemini等）
+- 🎵 **录音分析**: 音频文件上传和智能分析
+- 🎨 **AI生成**: AI内容生成功能
+- 📁 **媒体管理**: 图片和视频文件管理
+- ⚙️ **设置管理**: AI模型配置和系统设置
+
+## 快速开始
+
+### 本地开发
+
+```bash
+# 安装依赖
+npm install
+
+# 启动开发服务器
+npm run dev
+```
+
+### 局域网访问
+
+项目已配置支持局域网访问，启动开发服务器后：
+
+1. **获取本机IP地址**：
+   - Windows: 打开命令提示符，输入 `ipconfig`，查找 "IPv4 地址"
+   - macOS/Linux: 打开终端，输入 `ifconfig` 或 `ip addr show`
+
+2. **访问方式**：
+   - 本地访问: `http://localhost:5173`
+   - 局域网访问: `http://[你的IP地址]:5173`
+   - 例如: `http://192.168.1.100:5173`
+
+3. **注意事项**：
+   - 确保防火墙允许5173端口访问
+   - 确保设备在同一局域网内
+   - 移动设备可通过浏览器直接访问IP地址
+
+## 技术栈
 
 Currently, two official plugins are available:
 

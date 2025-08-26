@@ -477,8 +477,8 @@ class MediaStorage {
         if (existing) {
           existing.fileCount++;
           existing.lastModified = Math.max(existing.lastModified, file.lastModified);
-          // 如果还没有缩略图且当前文件是图片，使用它作为缩略图
-          if (!existing.thumbnail && file.type === 'image' && file.thumbnail) {
+          // 如果还没有缩略图，使用当前文件的缩略图（支持图片和视频）
+          if (!existing.thumbnail && file.thumbnail) {
             existing.thumbnail = file.thumbnail;
           }
         } else {
@@ -486,7 +486,7 @@ class MediaStorage {
             name: file.folderName,
             path: file.folderPath,
             fileCount: 1,
-            thumbnail: file.type === 'image' ? file.thumbnail : undefined,
+            thumbnail: file.thumbnail,
             lastModified: file.lastModified
           });
         }
@@ -494,6 +494,59 @@ class MediaStorage {
     });
     
     return Array.from(folderMap.values()).sort((a, b) => b.lastModified - a.lastModified);
+  }
+
+  // 根据类型获取文件夹信息
+  async getFoldersByType(type: 'image' | 'video'): Promise<FolderInfo[]> {
+    console.log(`💾 [Storage] getFoldersByType 开始执行，类型: ${type}`);
+    const files = await this.getFilesByType(type);
+    console.log(`💾 [Storage] 获取到 ${type} 文件数量:`, files.length);
+    console.log(`💾 [Storage] ${type} 文件详情:`, files.map(f => ({
+      name: f.name,
+      folderPath: f.folderPath,
+      folderName: f.folderName,
+      type: f.type
+    })));
+    
+    const folderMap = new Map<string, FolderInfo>();
+    
+    files.forEach(file => {
+      if (file.folderPath && file.folderName) {
+        console.log(`💾 [Storage] 处理文件夹: ${file.folderPath} (${file.folderName})`);
+        const existing = folderMap.get(file.folderPath);
+        if (existing) {
+          existing.fileCount++;
+          existing.lastModified = Math.max(existing.lastModified, file.lastModified);
+          // 如果还没有缩略图，使用当前文件的缩略图（支持图片和视频）
+          if (!existing.thumbnail && file.thumbnail) {
+            existing.thumbnail = file.thumbnail;
+          }
+          console.log(`💾 [Storage] 更新现有文件夹，文件数量: ${existing.fileCount}`);
+        } else {
+          const newFolder = {
+            name: file.folderName,
+            path: file.folderPath,
+            fileCount: 1,
+            thumbnail: file.thumbnail,
+            lastModified: file.lastModified
+          };
+          folderMap.set(file.folderPath, newFolder);
+          console.log(`💾 [Storage] 创建新文件夹:`, newFolder);
+        }
+      } else {
+        console.log(`💾 [Storage] 跳过文件（缺少文件夹信息）:`, {
+          name: file.name,
+          folderPath: file.folderPath,
+          folderName: file.folderName
+        });
+      }
+    });
+    
+    const result = Array.from(folderMap.values()).sort((a, b) => b.lastModified - a.lastModified);
+    console.log(`💾 [Storage] getFoldersByType 返回结果，文件夹数量: ${result.length}`);
+    console.log(`💾 [Storage] 返回的文件夹列表:`, result);
+    
+    return result;
   }
 
   // 根据文件夹路径获取文件

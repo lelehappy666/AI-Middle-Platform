@@ -56,6 +56,8 @@ interface MediaStore {
   
   // 文件夹相关方法
   loadFolders: () => Promise<void>;
+  loadImageFolders: () => Promise<void>;
+  loadVideoFolders: () => Promise<void>;
   setCurrentFolder: (folderPath: string | null) => void;
   getCurrentFolderFiles: () => MediaFile[];
   addFilesWithFolder: (files: File[], folderPath: string, folderName: string, onProgress?: (current: number, total: number, path: string) => void) => Promise<void>;
@@ -453,17 +455,33 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
   
   // 获取图片文件
   getImageFiles: () => {
-    const { files, filter, sort } = get();
-    const imageFilter = { ...filter, type: 'image' as const };
-    const filtered = filterFiles(files, imageFilter);
+    const { files, filter, sort, currentFolderPath } = get();
+    
+    // 如果当前在文件夹视图中，只显示当前文件夹的文件
+    let targetFiles = files;
+    if (currentFolderPath) {
+      targetFiles = files.filter(file => file.folderPath === currentFolderPath);
+    }
+    
+    // 筛选出图片文件
+    const imageFiles = targetFiles.filter(file => file.type === 'image');
+    const filtered = filterFiles(imageFiles, filter);
     return sortFiles(filtered, sort);
   },
-  
+
   // 获取视频文件
   getVideoFiles: () => {
-    const { files, filter, sort } = get();
-    const videoFilter = { ...filter, type: 'video' as const };
-    const filtered = filterFiles(files, videoFilter);
+    const { files, filter, sort, currentFolderPath } = get();
+    
+    // 如果当前在文件夹视图中，只显示当前文件夹的文件
+    let targetFiles = files;
+    if (currentFolderPath) {
+      targetFiles = files.filter(file => file.folderPath === currentFolderPath);
+    }
+    
+    // 筛选出视频文件
+    const videoFiles = targetFiles.filter(file => file.type === 'video');
+    const filtered = filterFiles(videoFiles, filter);
     return sortFiles(filtered, sort);
   },
   
@@ -489,6 +507,74 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
       set({ 
         error: error instanceof Error ? error.message : '加载文件夹失败',
         loading: false 
+      });
+    }
+  },
+
+  // 加载图片文件夹
+  loadImageFolders: async () => {
+    set({ loading: true, error: null });
+    
+    try {
+      const folders = await mediaStorage.getFoldersByType('image');
+      const { folderView } = get();
+      set({ 
+        folders,
+        folderView: {
+          ...folderView,
+          folders
+        },
+        loading: false 
+      });
+    } catch (error) {
+      console.error('加载图片文件夹失败:', error);
+      set({ 
+        error: error instanceof Error ? error.message : '加载图片文件夹失败',
+        loading: false 
+      });
+    }
+  },
+
+  // 加载视频文件夹
+  loadVideoFolders: async () => {
+    console.log('📁 [MediaStore] loadVideoFolders 开始执行');
+    set({ isLoading: true, error: null });
+    try {
+      console.log('📁 [MediaStore] 调用 mediaStorage.getFoldersByType("video")');
+      const folders = await mediaStorage.getFoldersByType('video');
+      console.log('📁 [MediaStore] getFoldersByType 返回结果:', {
+        foldersCount: folders.length,
+        folders: folders.map(f => ({
+          name: f.name,
+          path: f.path,
+          fileCount: f.fileCount,
+          hasThumbnail: !!f.thumbnail
+        }))
+      });
+      
+      const newState = {
+        folders,
+        folderView: {
+          ...get().folderView,
+          currentView: 'folders' as const
+        },
+        isLoading: false
+      };
+      
+      console.log('📁 [MediaStore] 设置新状态:', {
+        foldersCount: newState.folders.length,
+        currentView: newState.folderView.currentView,
+        isLoading: newState.isLoading
+      });
+      
+      set(newState);
+      
+      console.log('📁 [MediaStore] loadVideoFolders 执行完成');
+    } catch (error) {
+      console.error('📁 [MediaStore] loadVideoFolders 执行失败:', error);
+      set({ 
+        error: error instanceof Error ? error.message : '加载视频文件夹失败',
+        isLoading: false 
       });
     }
   },

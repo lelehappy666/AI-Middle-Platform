@@ -17,6 +17,16 @@ export const FolderView: React.FC<FolderViewProps> = ({
   loading = false,
   className
 }) => {
+  console.log('🖼️ [FolderView] 组件渲染，接收到的数据:', {
+    foldersCount: folders.length,
+    loading,
+    folders: folders.map(f => ({
+      name: f.name,
+      path: f.path,
+      fileCount: f.fileCount,
+      hasThumbnail: !!f.thumbnail
+    }))
+  });
   if (loading) {
     return (
       <div className={cn('grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6', className)}>

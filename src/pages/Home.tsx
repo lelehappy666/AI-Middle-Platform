@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Image, Video, FolderOpen, Upload, Play, Eye, Calendar, HardDrive } from 'lucide-react';
+import { Image, Video, FolderOpen, Upload, Play, Eye, Calendar, HardDrive, MessageSquare, Mic, Sparkles, Settings } from 'lucide-react';
 import { Layout, PageContainer, GridLayout } from '../components/layout';
 import { Button, Card, CardContent, Badge } from '../components/ui';
 import { useMediaStore } from '../store/mediaStore';
+import { useAIStore } from '../store';
 import { formatFileSize, formatNumber } from '../lib/utils';
 
 interface StatCardProps {
@@ -53,6 +54,7 @@ interface CategoryCardProps {
   href: string;
   gradient: string;
   iconBg: string;
+  badge?: string;
 }
 
 const CategoryCard: React.FC<CategoryCardProps> = ({
@@ -62,7 +64,8 @@ const CategoryCard: React.FC<CategoryCardProps> = ({
   count,
   href,
   gradient,
-  iconBg
+  iconBg,
+  badge
 }) => {
   return (
     <Link to={href} className="group">
@@ -73,9 +76,16 @@ const CategoryCard: React.FC<CategoryCardProps> = ({
             <div className={`p-3 rounded-xl ${iconBg} group-hover:scale-110 transition-transform duration-300`}>
               {icon}
             </div>
-            <Badge variant="secondary" className="text-xs">
-              {formatNumber(count)} 个文件
-            </Badge>
+            <div className="flex flex-col items-end gap-1">
+              {badge && (
+                <Badge variant="outline" className="text-xs bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 text-blue-700">
+                  {badge}
+                </Badge>
+              )}
+              <Badge variant="secondary" className="text-xs">
+                {badge ? `${formatNumber(count)} 个模型` : `${formatNumber(count)} 个文件`}
+              </Badge>
+            </div>
           </div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
             {title}
@@ -170,6 +180,8 @@ const Home: React.FC = () => {
     }
   ];
 
+  const { settings } = useAIStore();
+  
   const categoryCards = [
     {
       title: '图片库',
@@ -197,6 +209,40 @@ const Home: React.FC = () => {
       href: '/recent',
       gradient: 'bg-gradient-to-r from-green-500 to-teal-500',
       iconBg: 'bg-gradient-to-br from-green-500 to-teal-500'
+    }
+  ];
+  
+  // AI功能卡片
+  const aiCards = [
+    {
+      title: 'AI 对话',
+      description: '与多种AI模型进行智能对话，获得专业的回答和建议。',
+      icon: <MessageSquare className="w-6 h-6 text-white" />,
+      count: settings.aiChatModels.filter(m => m.isEnabled).length,
+      href: '/ai/chat',
+      gradient: 'bg-gradient-to-r from-indigo-500 to-blue-600',
+      iconBg: 'bg-gradient-to-br from-indigo-500 to-blue-600',
+      badge: '智能对话'
+    },
+    {
+      title: '录音分析',
+      description: '上传音频文件，AI将为您提供语音转文字、内容分析等服务。',
+      icon: <Mic className="w-6 h-6 text-white" />,
+      count: 0, // 可以后续添加分析历史数量
+      href: '/ai/audio',
+      gradient: 'bg-gradient-to-r from-emerald-500 to-green-600',
+      iconBg: 'bg-gradient-to-br from-emerald-500 to-green-600',
+      badge: '语音识别'
+    },
+    {
+      title: 'AI 生成',
+      description: '使用AI生成精美的图片和视频，释放您的创意想象力。',
+      icon: <Sparkles className="w-6 h-6 text-white" />,
+      count: 0, // 可以后续添加生成历史数量
+      href: '/ai/generate',
+      gradient: 'bg-gradient-to-r from-pink-500 to-rose-600',
+      iconBg: 'bg-gradient-to-br from-pink-500 to-rose-600',
+      badge: '创意生成'
     }
   ];
 
@@ -261,6 +307,28 @@ const Home: React.FC = () => {
           <GridLayout columns={3} gap="lg" responsive>
             {categoryCards.map((category, index) => (
               <CategoryCard key={index} {...category} />
+            ))}
+          </GridLayout>
+        </div>
+
+        {/* AI 功能 */}
+        <div className="mt-12">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+                <Sparkles className="w-6 h-6 mr-2 text-purple-600" />
+                AI 智能助手
+              </h2>
+              <p className="text-gray-600 mt-1">体验强大的人工智能功能，提升您的工作效率</p>
+            </div>
+            <Link to="/settings" className="flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium">
+              <Settings className="w-4 h-4" />
+              AI 设置
+            </Link>
+          </div>
+          <GridLayout columns={3} gap="lg" responsive>
+            {aiCards.map((card, index) => (
+              <CategoryCard key={`ai-${index}`} {...card} />
             ))}
           </GridLayout>
         </div>

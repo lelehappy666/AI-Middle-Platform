@@ -77,7 +77,7 @@ const Modal: React.FC<ModalProps> = ({
     md: 'max-w-lg',
     lg: 'max-w-2xl',
     xl: 'max-w-4xl',
-    full: 'max-w-[95vw] max-h-[95vh]'
+    full: 'max-w-[100vw] max-h-[100vh]'
   };
 
   return (
@@ -92,7 +92,7 @@ const Modal: React.FC<ModalProps> = ({
       {/* 模态框内容 */}
       <div
         className={cn(
-          'relative w-full mx-4 bg-white rounded-2xl shadow-2xl',
+          'relative w-full bg-white rounded-2xl shadow-2xl',
           'transform transition-all duration-300 scale-100',
           'max-h-[90vh] overflow-hidden flex flex-col',
           sizeClasses[size],

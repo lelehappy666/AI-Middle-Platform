@@ -1,4 +1,4 @@
-import { MediaFile, FilePickerOptions, IMAGE_PICKER_OPTIONS, VIDEO_PICKER_OPTIONS } from '../types';
+import { MediaFile, FilePickerOptions, IMAGE_PICKER_OPTIONS, VIDEO_PICKER_OPTIONS, SUPPORTED_VIDEO_TYPES } from '../types';
 
 // 检查浏览器是否支持 File System Access API
 export const isFileSystemAccessSupported = (): boolean => {
@@ -38,8 +38,37 @@ export const formatDuration = (seconds: number): string => {
 
 // 检查文件类型
 export const getFileType = (file: File): 'image' | 'video' | 'unknown' => {
+  // 首先检查MIME类型
   if (file.type.startsWith('image/')) return 'image';
   if (file.type.startsWith('video/')) return 'video';
+  
+  // 如果MIME类型不明确，基于文件扩展名检测
+  const fileName = file.name.toLowerCase();
+  const extension = fileName.substring(fileName.lastIndexOf('.'));
+  
+  // 检查是否为支持的图片格式
+  const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.ico', '.tiff', '.tif'];
+  if (imageExtensions.includes(extension)) {
+    return 'image';
+  }
+  
+  // 检查是否为支持的视频格式
+  if (SUPPORTED_VIDEO_TYPES.includes(extension)) {
+    return 'video';
+  }
+  
+  // 额外的MIME类型检测（针对一些特殊格式）
+  const videoMimeTypes = [
+    'video/mp4', 'video/avi', 'video/quicktime', 'video/x-msvideo',
+    'video/webm', 'video/ogg', 'video/3gpp', 'video/x-flv',
+    'video/x-ms-wmv', 'video/x-matroska', 'application/x-mpegURL',
+    'video/mp2t', 'video/x-m4v', 'video/x-ms-asf'
+  ];
+  
+  if (videoMimeTypes.includes(file.type)) {
+    return 'video';
+  }
+  
   return 'unknown';
 };
 
@@ -314,7 +343,7 @@ export const getAllVideosFromDirectory = async (
   onProgress?: (current: number, total: number, currentPath: string) => void
 ): Promise<File[]> => {
   const videoFiles: File[] = [];
-  const videoExtensions = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mkv', '.m4v'];
+  const videoExtensions = SUPPORTED_VIDEO_TYPES;
   let processedCount = 0;
   let totalCount = 0;
 
@@ -370,50 +399,196 @@ export const getAllVideosFromDirectory = async (
   return videoFiles;
 };
 
+// 传统方式选择文件夹（使用input[webkitdirectory]）
+const selectDirectoryLegacy = (): Promise<FileList> => {
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.webkitdirectory = true;
+    input.multiple = true;
+    
+    input.onchange = (event) => {
+      const files = (event.target as HTMLInputElement).files;
+      if (files && files.length > 0) {
+        resolve(files);
+      } else {
+        reject(new Error('未选择任何文件'));
+      }
+    };
+    
+    input.oncancel = () => {
+      reject(new Error('用户取消了文件夹选择'));
+    };
+    
+    // 触发文件选择对话框
+    input.click();
+  });
+};
+
+// 从FileList中筛选图片文件
+const filterImageFiles = (fileList: FileList): File[] => {
+  const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
+  const imageFiles: File[] = [];
+  
+  for (let i = 0; i < fileList.length; i++) {
+    const file = fileList[i];
+    const extension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+    if (imageExtensions.includes(extension)) {
+      imageFiles.push(file);
+    }
+  }
+  
+  return imageFiles;
+};
+
+// 处理传统方式选择的文件夹
+const processLegacyDirectorySelection = async (
+  fileList: FileList,
+  onProgress?: (current: number, total: number, currentPath: string) => void
+): Promise<{ files: File[]; directoryName: string }> => {
+  const imageFiles = filterImageFiles(fileList);
+  const totalFiles = imageFiles.length;
+  
+  // 获取文件夹名称（从第一个文件的路径中提取）
+  let directoryName = '选择的文件夹';
+  if (imageFiles.length > 0) {
+    const firstFile = imageFiles[0] as any;
+    if (firstFile.webkitRelativePath) {
+      const pathParts = firstFile.webkitRelativePath.split('/');
+      directoryName = pathParts[0] || '选择的文件夹';
+    }
+  }
+  
+  // 模拟进度回调
+  if (onProgress) {
+    for (let i = 0; i < imageFiles.length; i++) {
+      const file = imageFiles[i] as any;
+      const relativePath = file.webkitRelativePath || file.name;
+      onProgress(i + 1, totalFiles, relativePath);
+      // 添加小延迟以显示进度
+      if (i % 10 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 1));
+      }
+    }
+  }
+  
+  return {
+    files: imageFiles,
+    directoryName
+  };
+};
+
 // 选择文件夹并获取所有图片
 export const selectDirectoryAndGetImages = async (
   onProgress?: (current: number, total: number, currentPath: string) => void
 ): Promise<{ files: File[]; directoryName: string }> => {
-  if (!isDirectoryPickerSupported()) {
-    throw new Error('浏览器不支持文件夹选择功能');
-  }
-
-  try {
-    const directoryHandle = await (window as any).showDirectoryPicker();
-    const files = await getAllImagesFromDirectory(directoryHandle, onProgress);
-    
-    return {
-      files,
-      directoryName: directoryHandle.name
-    };
-  } catch (error) {
-    if ((error as Error).name === 'AbortError') {
-      throw new Error('用户取消了文件夹选择');
+  // 优先使用File System Access API
+  if (isDirectoryPickerSupported()) {
+    try {
+      const directoryHandle = await (window as any).showDirectoryPicker();
+      const files = await getAllImagesFromDirectory(directoryHandle, onProgress);
+      
+      return {
+        files,
+        directoryName: directoryHandle.name
+      };
+    } catch (error) {
+      if ((error as Error).name === 'AbortError') {
+        throw new Error('用户取消了文件夹选择');
+      }
+      throw error;
     }
+  }
+  
+  // 降级到传统方式
+  try {
+    const fileList = await selectDirectoryLegacy();
+    return await processLegacyDirectorySelection(fileList, onProgress);
+  } catch (error) {
     throw error;
   }
+};
+
+// 从FileList中筛选视频文件
+const filterVideoFiles = (fileList: FileList): File[] => {
+  const videoExtensions = SUPPORTED_VIDEO_TYPES;
+  const videoFiles: File[] = [];
+  
+  for (let i = 0; i < fileList.length; i++) {
+    const file = fileList[i];
+    const extension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+    if (videoExtensions.includes(extension)) {
+      videoFiles.push(file);
+    }
+  }
+  
+  return videoFiles;
+};
+
+// 处理传统方式选择的视频文件夹
+const processLegacyVideoDirectorySelection = async (
+  fileList: FileList,
+  onProgress?: (current: number, total: number, currentPath: string) => void
+): Promise<{ files: File[]; directoryName: string }> => {
+  const videoFiles = filterVideoFiles(fileList);
+  const totalFiles = videoFiles.length;
+  
+  // 获取文件夹名称（从第一个文件的路径中提取）
+  let directoryName = '选择的文件夹';
+  if (videoFiles.length > 0) {
+    const firstFile = videoFiles[0] as any;
+    if (firstFile.webkitRelativePath) {
+      const pathParts = firstFile.webkitRelativePath.split('/');
+      directoryName = pathParts[0] || '选择的文件夹';
+    }
+  }
+  
+  // 模拟进度回调
+  if (onProgress) {
+    for (let i = 0; i < videoFiles.length; i++) {
+      const file = videoFiles[i] as any;
+      const relativePath = file.webkitRelativePath || file.name;
+      onProgress(i + 1, totalFiles, relativePath);
+      // 添加小延迟以显示进度
+      if (i % 10 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 1));
+      }
+    }
+  }
+  
+  return {
+    files: videoFiles,
+    directoryName
+  };
 };
 
 // 选择文件夹并获取所有视频
 export const selectDirectoryAndGetVideos = async (
   onProgress?: (current: number, total: number, currentPath: string) => void
 ): Promise<{ files: File[]; directoryName: string }> => {
-  if (!isDirectoryPickerSupported()) {
-    throw new Error('浏览器不支持文件夹选择功能');
-  }
-
-  try {
-    const directoryHandle = await (window as any).showDirectoryPicker();
-    const files = await getAllVideosFromDirectory(directoryHandle, onProgress);
-    
-    return {
-      files,
-      directoryName: directoryHandle.name
-    };
-  } catch (error) {
-    if ((error as Error).name === 'AbortError') {
-      throw new Error('用户取消了文件夹选择');
+  // 优先使用File System Access API
+  if (isDirectoryPickerSupported()) {
+    try {
+      const directoryHandle = await (window as any).showDirectoryPicker();
+      const files = await getAllVideosFromDirectory(directoryHandle, onProgress);
+      
+      return {
+        files,
+        directoryName: directoryHandle.name
+      };
+    } catch (error) {
+      if ((error as Error).name === 'AbortError') {
+        throw new Error('用户取消了文件夹选择');
+      }
+      throw error;
     }
+  }
+  
+  // 降级到传统方式
+  try {
+    const fileList = await selectDirectoryLegacy();
+    return await processLegacyVideoDirectorySelection(fileList, onProgress);
+  } catch (error) {
     throw error;
   }
 };

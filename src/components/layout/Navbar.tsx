@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Search, Menu, X, Image, Video, Home, Info } from 'lucide-react';
+import { Search, Menu, X, Image, Video, Home, Info, MessageCircle, Mic, Sparkles, Settings } from 'lucide-react';
 import { Button, SearchInput } from '../ui';
 import { cn } from '../../lib/utils';
 import { useMediaStore } from '../../store/mediaStore';
@@ -35,10 +35,34 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
       current: location.pathname === '/videos'
     },
     {
+      name: 'AI对话',
+      href: '/ai/chat',
+      icon: MessageCircle,
+      current: location.pathname === '/ai/chat'
+    },
+    {
+      name: '录音分析',
+      href: '/ai/audio',
+      icon: Mic,
+      current: location.pathname === '/ai/audio'
+    },
+    {
+      name: 'AI生成',
+      href: '/ai/generate',
+      icon: Sparkles,
+      current: location.pathname === '/ai/generate'
+    },
+    {
       name: '关于',
       href: '/about',
       icon: Info,
       current: location.pathname === '/about'
+    },
+    {
+      name: '设置',
+      href: '/settings',
+      icon: Settings,
+      current: location.pathname === '/settings'
     }
   ];
 
@@ -50,6 +74,8 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
+
+
 
   return (
     <nav className={cn(
@@ -96,6 +122,8 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
                 </Link>
               );
             })}
+            
+
           </div>
 
           {/* Search Bar */}
@@ -162,6 +190,7 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
                 </Link>
               );
             })}
+
           </div>
         </div>
       )}

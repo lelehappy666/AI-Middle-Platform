@@ -3,7 +3,7 @@ import { cn } from '../../lib/utils';
 
 interface BadgeProps {
   children: React.ReactNode;
-  variant?: 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'info';
+  variant?: 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'info' | 'outline';
   size?: 'sm' | 'md' | 'lg';
   className?: string;
   onClick?: () => void;
@@ -31,7 +31,8 @@ const Badge: React.FC<BadgeProps> = ({
     success: 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200',
     warning: 'bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200',
     danger: 'bg-red-100 text-red-800 border-red-200 hover:bg-red-200',
-    info: 'bg-cyan-100 text-cyan-800 border-cyan-200 hover:bg-cyan-200'
+    info: 'bg-cyan-100 text-cyan-800 border-cyan-200 hover:bg-cyan-200',
+    outline: 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
   };
 
   const sizes = {
