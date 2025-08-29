@@ -40,7 +40,7 @@ export interface AIModel {
 }
 
 /**
- * 调用AI API获取回复
+ * 调用AI API获取回复（模拟实现）
  * @param model AI模型配置
  * @param messages 对话消息历史
  * @param onProgress 流式响应回调函数（可选）
@@ -51,11 +51,11 @@ export async function callAIApi(
   messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
   onProgress?: (content: string) => void
 ): Promise<string> {
-  if (!model.apiKey || !model.isEnabled || !model.isConnected) {
+  // 基本参数验证
+  if (!model.apiKey || !model.isEnabled) {
     throw new Error('模型未配置或未启用');
   }
   
-  // 验证messages参数
   if (!messages || messages.length === 0) {
     throw new Error('Message field is required.');
   }
@@ -70,138 +70,56 @@ export async function callAIApi(
     }
   }
   
-  console.log('AI API调用参数:', { model: model.model, messagesCount: messages.length, messages });
+  console.log('AI API调用参数 (模拟):', { model: model.model, messagesCount: messages.length });
 
-  const baseUrl = model.baseUrl || getDefaultBaseUrl(model.provider);
-  const endpoint = `${baseUrl}/chat/completions`;
+  // 模拟网络延迟
+  const delay = Math.random() * 2000 + 1000; // 1-3秒随机延迟
+  await new Promise(resolve => setTimeout(resolve, delay));
 
-  const requestBody: AIApiRequest = {
-    model: model.model,
-    messages: messages,
-    max_tokens: model.maxTokens || 2048,
-    temperature: model.temperature || 0.7,
-    stream: !!onProgress // 如果有进度回调则启用流式响应
-  };
-
-  try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${model.apiKey}`
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-      
-      if (errorData.error?.message) {
-        errorMessage = errorData.error.message;
-      } else if (errorData.message) {
-        errorMessage = errorData.message;
-      } else if (errorData.detail) {
-        errorMessage = errorData.detail;
-      }
-      
-      throw new Error(errorMessage);
-    }
-
-    // 处理流式响应
-    if (onProgress && requestBody.stream) {
-      return await handleStreamResponse(response, onProgress);
-    }
-    
-    // 处理普通响应
-    const data: AIApiResponse = await response.json();
-    
-    if (!data.choices || data.choices.length === 0) {
-      throw new Error('API返回数据格式错误');
-    }
-
-    return data.choices[0].message.content || '';
-    
-  } catch (error: any) {
-    console.error('AI API调用失败:', error);
-    
-    if (error.name === 'AbortError') {
-      throw new Error('请求超时，请稍后重试');
-    }
-    
-    throw new Error(error.message || 'AI API调用失败，请检查网络连接和配置');
+  // 模拟随机失败（5%概率）
+  if (Math.random() < 0.05) {
+    throw new Error('模拟网络错误：连接超时');
   }
+
+  // 获取用户最后一条消息
+  const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+  const userContent = lastUserMessage?.content || '';
+
+  // 生成模拟回复
+  const mockResponses = [
+    `我理解您的问题："${userContent.slice(0, 50)}${userContent.length > 50 ? '...' : ''}"。这是一个很有趣的话题，让我来为您详细解答。`,
+    `关于您提到的内容，我认为这涉及到多个方面的考虑。首先，我们需要分析问题的核心要素...`,
+    `感谢您的提问。基于我的理解，这个问题可以从以下几个角度来思考：1) 技术层面 2) 实践层面 3) 理论基础。`,
+    `这是一个很好的问题！让我为您提供一个全面的回答。根据当前的最佳实践和行业标准...`,
+    `我注意到您询问的是关于${userContent.includes('技术') ? '技术' : userContent.includes('方法') ? '方法' : '相关'}问题。让我为您详细说明。`
+  ];
+
+  let response = mockResponses[Math.floor(Math.random() * mockResponses.length)];
+  
+  // 根据模型类型调整回复风格
+  if (model.provider === 'openai') {
+    response += ' (OpenAI模型回复)';
+  } else if (model.provider === 'anthropic') {
+    response += ' (Claude模型回复)';
+  } else if (model.provider === 'google') {
+    response += ' (Gemini模型回复)';
+  }
+
+  // 模拟流式响应
+  if (onProgress) {
+    const words = response.split('');
+    let currentContent = '';
+    
+    for (let i = 0; i < words.length; i++) {
+      currentContent += words[i];
+      onProgress(currentContent);
+      await new Promise(resolve => setTimeout(resolve, 50)); // 每个字符50ms延迟
+    }
+  }
+
+  return response;
 }
 
-/**
- * 处理流式响应
- */
-async function handleStreamResponse(
-  response: Response,
-  onProgress: (content: string) => void
-): Promise<string> {
-  const reader = response.body?.getReader();
-  if (!reader) {
-    throw new Error('无法读取流式响应');
-  }
+// 流式响应处理函数已移除（纯前端模拟实现中不需要）
 
-  const decoder = new TextDecoder();
-  let fullContent = '';
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      
-      if (done) break;
-      
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n');
-      
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6).trim();
-          
-          if (data === '[DONE]') {
-            return fullContent;
-          }
-          
-          try {
-            const parsed = JSON.parse(data);
-            const content = parsed.choices?.[0]?.delta?.content;
-            
-            if (content) {
-              fullContent += content;
-              onProgress(fullContent);
-            }
-          } catch (e) {
-            // 忽略解析错误的数据块
-          }
-        }
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  return fullContent;
-}
-
-/**
- * 获取默认API地址
- */
-function getDefaultBaseUrl(provider: string): string {
-  switch (provider) {
-    case 'openai':
-      return 'https://api.openai.com/v1';
-    case 'anthropic':
-      return 'https://api.anthropic.com/v1';
-    case 'google':
-      return 'https://generativelanguage.googleapis.com/v1';
-    case 'deepseek':
-      return 'https://api.deepseek.com/v1';
-    case '硅基流动':
-      return 'https://api.siliconflow.cn/v1';
-    default:
-      return 'https://api.openai.com/v1';
-  }
-}
+// 默认API地址配置已移除（纯前端模拟实现中不需要）

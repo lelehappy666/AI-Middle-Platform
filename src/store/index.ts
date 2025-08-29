@@ -48,3 +48,14 @@ export {
   selectEnabledVideoGenerationModels,
   selectEnabledPPTGenerationModels
 } from './aiStore';
+
+// 认证状态管理
+export {
+  useAuthStore,
+  useAuth,
+  useAuthActions,
+  type User,
+  type AuthState,
+  type AuthActions,
+  type AuthStore
+} from './authStore';

@@ -286,98 +286,56 @@ const Settings: React.FC = () => {
     }
   };
   
-  // 测试模型连接
+  // 模拟模型连接测试（纯前端实现）
   const testModelConnection = async (model: AIModel): Promise<{ success: boolean; error?: string }> => {
-    try {
-      const baseUrl = model.baseUrl || getDefaultBaseUrl(model.provider);
-      const endpoint = `${baseUrl}/chat/completions`;
-      
-      console.log('Testing connection for model:', {
-        name: model.name,
-        provider: model.provider,
-        endpoint: endpoint,
-        model: model.model,
-        hasApiKey: !!model.apiKey
-      });
-      
-      const requestBody = {
-        model: model.model,
-        messages: [{ role: 'user', content: 'Hello' }],
-        max_tokens: 10,
-        temperature: 0.1
-      };
-      
-      console.log('Request body:', requestBody);
-      
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${model.apiKey}`
-        },
-        body: JSON.stringify(requestBody),
-        signal: AbortSignal.timeout(15000) // 15秒超时
-      });
-      
-      console.log('Response status:', response.status, response.statusText);
-      
-      if (response.ok) {
-        const responseData = await response.json();
-        console.log('Connection test successful:', responseData);
-        return { success: true };
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Connection test failed:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorData: errorData
-        });
-        
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        if (errorData.error?.message) {
-          errorMessage = errorData.error.message;
-        } else if (errorData.message) {
-          errorMessage = errorData.message;
-        } else if (errorData.detail) {
-          errorMessage = errorData.detail;
-        }
-        
-        return { 
-          success: false, 
-          error: errorMessage
-        };
-      }
-    } catch (error: any) {
-      console.error('Connection test exception:', error);
-      
-      if (error.name === 'AbortError') {
-        return { success: false, error: '连接超时，请检查网络或API地址' };
-      }
-      
+    console.log('Testing connection for model (mock):', {
+      name: model.name,
+      provider: model.provider,
+      model: model.model,
+      hasApiKey: !!model.apiKey
+    });
+    
+    // 基本参数验证
+    if (!model.apiKey || model.apiKey.trim() === '') {
+      return { success: false, error: 'API Key不能为空' };
+    }
+    
+    if (!model.model || model.model.trim() === '') {
+      return { success: false, error: '模型名称不能为空' };
+    }
+    
+    // 模拟网络延迟
+    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
+    
+    // 简单的API Key格式验证
+    const apiKeyPatterns = {
+      openai: /^sk-[a-zA-Z0-9]{48,}$/,
+      anthropic: /^sk-ant-[a-zA-Z0-9-]{95,}$/,
+      google: /^[a-zA-Z0-9_-]{30,}$/,
+      deepseek: /^sk-[a-zA-Z0-9]{48,}$/,
+      '硅基流动': /^sk-[a-zA-Z0-9]{48,}$/
+    };
+    
+    const pattern = apiKeyPatterns[model.provider as keyof typeof apiKeyPatterns];
+    if (pattern && !pattern.test(model.apiKey)) {
+      return { success: false, error: `${model.provider} API Key格式不正确` };
+    }
+    
+    // 模拟随机成功/失败（90%成功率）
+    const isSuccess = Math.random() > 0.1;
+    
+    if (isSuccess) {
+      console.log('Connection test successful (mock)');
+      return { success: true };
+    } else {
       return { 
         success: false, 
-        error: error.message || '连接失败，请检查API配置' 
+        error: '模拟连接失败 - 请检查API配置'
       };
     }
   };
   
-  // 获取默认API地址
-  const getDefaultBaseUrl = (provider: string): string => {
-    switch (provider) {
-      case 'openai':
-        return 'https://api.openai.com/v1';
-      case 'anthropic':
-        return 'https://api.anthropic.com/v1';
-      case 'google':
-        return 'https://generativelanguage.googleapis.com/v1';
-      case 'deepseek':
-        return 'https://api.deepseek.com/v1';
-      case '硅基流动':
-        return 'https://api.siliconflow.cn/v1';
-      default:
-        return 'https://api.openai.com/v1';
-    }
-  };
+  // getDefaultBaseUrl函数已移除（纯前端模拟实现中不需要）
   
   // 切换模型启用状态
   const toggleModelEnabled = async (modelId: string, enabled: boolean, modelType?: string) => {
