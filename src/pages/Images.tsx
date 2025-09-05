@@ -45,7 +45,7 @@ const ImageCard: React.FC<ImageCardProps> = ({
           <div className="flex items-center space-x-4">
             <div className="relative flex-shrink-0">
               <LazyImage
-                src={image.thumbnail || URL.createObjectURL(image.file)}
+                src={image.thumbnail || image.url || URL.createObjectURL(image.file)}
                 alt={image.name}
                 className="w-16 h-16 rounded-lg"
                 onLoad={handleImageLoad}
@@ -104,7 +104,7 @@ const ImageCard: React.FC<ImageCardProps> = ({
     >
       <div className="relative aspect-square">
         <LazyImage
-          src={image.thumbnail || URL.createObjectURL(image.file)}
+          src={image.thumbnail || image.url || URL.createObjectURL(image.file)}
           alt={image.name}
           className="w-full h-full group-hover:scale-105 transition-transform duration-300"
           onLoad={handleImageLoad}
@@ -328,14 +328,16 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({ image, images, currentIndex
 
   const handleDownload = () => {
     if (image.file && image.file instanceof File) {
-      const url = URL.createObjectURL(image.file);
+      const url = image.url || URL.createObjectURL(image.file);
       const a = document.createElement('a');
       a.href = url;
       a.download = image.name;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      if (!image.url) {
+        URL.revokeObjectURL(url);
+      }
     }
   };
 
@@ -379,7 +381,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({ image, images, currentIndex
           )}
           
           <img
-            src={image.file && image.file instanceof File ? URL.createObjectURL(image.file) : ''}
+            src={image.url || (image.file && image.file instanceof File ? URL.createObjectURL(image.file) : '')}
             alt={image.name}
             className="relative z-10 max-w-full max-h-full object-contain rounded-2xl shadow-lg transition-all duration-300 hover:shadow-xl"
             style={{
@@ -490,6 +492,7 @@ const Images: React.FC = () => {
     loadImageFolders,
     addFilesWithProgress,
     addFilesWithFolder,
+    uploadFilesToApi,
     toggleFileSelection,
     selectAllFiles,
     clearSelection,
@@ -517,8 +520,31 @@ const Images: React.FC = () => {
       ).length; // 文件夹内容视图：只计算当前文件夹中选中的图片数量
 
   useEffect(() => {
-    loadFiles();
-    loadImageFolders();
+    // 每次进入页面时自动刷新数据
+    const refreshData = async () => {
+      try {
+        await loadFiles();
+        await loadImageFolders();
+        console.log('图片数据刷新完成');
+      } catch (error) {
+        console.error('图片数据刷新失败:', error);
+      }
+    };
+    
+    refreshData();
+  }, [loadFiles, loadImageFolders]);
+
+  // 添加页面可见性变化时的自动刷新
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadFiles();
+        loadImageFolders();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [loadFiles, loadImageFolders]);
 
   const handleFileUpload = async () => {
@@ -535,16 +561,16 @@ const Images: React.FC = () => {
       });
       
       if (files.length > 0) {
-        await addFilesWithProgress(files, (current, total, fileName) => {
+        await uploadFilesToApi(files, 'image', (current, total, fileName) => {
           // Progress callback for individual file uploads
-          console.log(`处理进度: ${current}/${total} - ${fileName}`);
+          console.log(`上传进度: ${current}/${total} - ${fileName}`);
         });
         
-        // 重新加载文件和文件夹列表
+        // 重新从API加载图片列表
         await loadFiles();
         await loadImageFolders();
         
-        alert(`成功上传 ${files.length} 张图片！`);
+        alert(`成功上传 ${files.length} 张图片到服务器！`);
       }
     } catch (error) {
       if (error instanceof Error && error.message.includes('用户取消')) {
@@ -552,7 +578,7 @@ const Images: React.FC = () => {
         return;
       }
       console.error('文件上传失败:', error);
-      alert('文件上传失败，请重试。');
+      alert('文件上传到服务器失败，请重试。');
     }
   };
 
@@ -570,25 +596,24 @@ const Images: React.FC = () => {
       });
       
       if (result.files.length > 0) {
-        // 使用带文件夹信息的添加方法
-        await addFilesWithFolder(
+        // 使用API上传而不是本地存储
+        await uploadFilesToApi(
           result.files, 
-          result.directoryName,
-          result.directoryName,
+          'image',
           (current, total, fileName) => {
             setFolderProgress({ 
               current, 
               total, 
-              path: `正在处理: ${fileName}` 
+              path: `正在上传: ${fileName}` 
             });
           }
         );
         
-        // 重新加载文件和文件夹列表
+        // 重新从API加载图片列表
         await loadFiles();
         await loadImageFolders();
         
-        alert(`成功从文件夹 "${result.directoryName}" 加载了 ${result.files.length} 张图片！`);
+        alert(`成功从文件夹 "${result.directoryName}" 上传了 ${result.files.length} 张图片到服务器！`);
       } else {
         alert(`文件夹 "${result.directoryName}" 中没有找到图片文件。`);
       }
@@ -597,8 +622,8 @@ const Images: React.FC = () => {
         // 用户取消选择，不显示错误
         return;
       }
-      console.error('文件夹选择失败:', error);
-      alert('文件夹选择失败，请重试。');
+      console.error('文件夹上传失败:', error);
+      alert('文件夹上传到服务器失败，请重试。');
     } finally {
       setIsLoadingFolder(false);
       setFolderProgress({ current: 0, total: 0, path: '' });
@@ -718,11 +743,14 @@ const Images: React.FC = () => {
               )}
               <Button
                 variant="secondary"
-                onClick={handleFolderSelect}
-                disabled={isLoadingFolder}
+                onClick={() => {
+                  loadFiles();
+                  loadImageFolders();
+                }}
+                disabled={isLoading}
               >
-                <Folder className="w-4 h-4 mr-2" />
-                {isLoadingFolder ? '加载中...' : '选择文件夹'}
+                <Search className="w-4 h-4 mr-2" />
+                刷新
               </Button>
             </div>
           }

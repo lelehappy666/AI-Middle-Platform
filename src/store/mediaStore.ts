@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { MediaFile, FilterOptions, SortOptions, AppState, FolderInfo, FolderViewState } from '../types';
 import { mediaStorage } from '../lib/storage';
 import { processFile } from '../lib/fileSystem';
+import { fetchImages, fetchVideos, uploadFile, MediaFileInfo } from '../services/mediaApi';
 
 interface MediaStore {
   // 状态
@@ -28,8 +29,12 @@ interface MediaStore {
   
   // 文件管理
   loadFiles: () => Promise<void>;
+  loadFilesFromApi: () => Promise<void>;
+  loadImagesFromApi: () => Promise<void>;
+  loadVideosFromApi: () => Promise<void>;
   addFiles: (files: File[]) => Promise<void>;
   addFilesWithProgress: (files: File[], onProgress?: (current: number, total: number, path: string) => void) => Promise<void>;
+  uploadFilesToApi: (files: File[], type: 'image' | 'video', onProgress?: (current: number, total: number, fileName: string) => void) => Promise<void>;
   removeFile: (id: string) => Promise<void>;
   removeSelectedFiles: () => Promise<void>;
   clearAllFiles: () => Promise<void>;
@@ -62,6 +67,30 @@ interface MediaStore {
   getCurrentFolderFiles: () => MediaFile[];
   addFilesWithFolder: (files: File[], folderPath: string, folderName: string, onProgress?: (current: number, total: number, path: string) => void) => Promise<void>;
 }
+
+// 将API返回的MediaFileInfo转换为MediaFile格式
+const convertApiFileToMediaFile = (apiFile: MediaFileInfo): MediaFile => {
+  // 创建一个虚拟的File对象用于兼容现有接口
+  const virtualFile = new File([], apiFile.name, {
+    type: apiFile.type === 'image' ? 'image/*' : 'video/*',
+    lastModified: apiFile.lastModified
+  });
+
+  return {
+    id: apiFile.id,
+    name: apiFile.name,
+    size: apiFile.size,
+    type: apiFile.type,
+    lastModified: apiFile.lastModified,
+    file: virtualFile,
+    url: apiFile.url,
+    thumbnail: apiFile.thumbnail,
+    dimensions: apiFile.dimensions,
+    duration: apiFile.duration,
+    folderPath: apiFile.folderPath || '',
+    isFromApi: true // 标记这是从API获取的文件
+  };
+};
 
 // 筛选文件函数
 const filterFiles = (files: MediaFile[], filter: FilterOptions): MediaFile[] => {
@@ -164,23 +193,78 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
     set({ filteredFiles: getFilteredFiles() });
   },
   
-  // 加载所有文件
+  // 文件加载 - 现在从API获取
   loadFiles: async () => {
-    set({ loading: true, error: null });
-    
+    const { loadFilesFromApi } = get();
+    await loadFilesFromApi();
+  },
+
+  // 从API加载所有文件
+  loadFilesFromApi: async () => {
+    set({ isLoading: true, error: null });
     try {
-      const files = await mediaStorage.getAllFiles();
-      set({ files, loading: false });
+      const [images, videos] = await Promise.all([
+        fetchImages().catch(() => []), // 如果图片API失败，返回空数组
+        fetchVideos().catch(() => [])  // 如果视频API失败，返回空数组
+      ]);
+      
+      const allApiFiles = [...images, ...videos];
+      const files = allApiFiles.map(convertApiFileToMediaFile);
+      
+      set({ files, isLoading: false });
       
       // 更新筛选后的文件列表
       const { getFilteredFiles } = get();
       set({ filteredFiles: getFilteredFiles() });
     } catch (error) {
-      console.error('加载文件失败:', error);
-      set({ 
-        error: error instanceof Error ? error.message : '加载文件失败',
-        loading: false 
-      });
+      console.error('从API加载文件失败:', error);
+      set({ error: '从服务器加载文件失败，请检查网络连接', isLoading: false });
+    }
+  },
+
+  // 仅加载图片
+  loadImagesFromApi: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const images = await fetchImages();
+      const imageFiles = images.map(convertApiFileToMediaFile);
+      
+      // 更新files数组，保留视频文件，替换图片文件
+      const { files } = get();
+      const videoFiles = files.filter(f => f.type === 'video');
+      const newFiles = [...videoFiles, ...imageFiles];
+      
+      set({ files: newFiles, isLoading: false });
+      
+      // 更新筛选后的文件列表
+      const { getFilteredFiles } = get();
+      set({ filteredFiles: getFilteredFiles() });
+    } catch (error) {
+      console.error('从API加载图片失败:', error);
+      set({ error: '从服务器加载图片失败', isLoading: false });
+    }
+  },
+
+  // 仅加载视频
+  loadVideosFromApi: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const videos = await fetchVideos();
+      const videoFiles = videos.map(convertApiFileToMediaFile);
+      
+      // 更新files数组，保留图片文件，替换视频文件
+      const { files } = get();
+      const imageFiles = files.filter(f => f.type === 'image');
+      const newFiles = [...imageFiles, ...videoFiles];
+      
+      set({ files: newFiles, isLoading: false });
+      
+      // 更新筛选后的文件列表
+      const { getFilteredFiles } = get();
+      set({ filteredFiles: getFilteredFiles() });
+    } catch (error) {
+      console.error('从API加载视频失败:', error);
+      set({ error: '从服务器加载视频失败', isLoading: false });
     }
   },
   
@@ -229,6 +313,59 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
       set({ 
         error: error instanceof Error ? error.message : '添加文件失败',
         loading: false 
+      });
+    }
+  },
+
+  // 上传文件到API服务器
+  uploadFilesToApi: async (files, type, onProgress) => {
+    set({ isLoading: true, error: null });
+    
+    try {
+      const uploadedFiles: MediaFile[] = [];
+      const total = files.length;
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        try {
+          // 调用进度回调
+          onProgress?.(i + 1, total, file.name);
+          
+          // 上传到API服务器
+          const apiFile = await uploadFile(file, type);
+          const mediaFile = convertApiFileToMediaFile(apiFile);
+          uploadedFiles.push(mediaFile);
+        } catch (error) {
+          console.warn(`上传文件 ${file.name} 失败:`, error);
+        }
+      }
+      
+      if (uploadedFiles.length === 0) {
+        set({ error: '没有文件成功上传', isLoading: false });
+        return;
+      }
+      
+      // 更新状态 - 添加新上传的文件
+      const { files: currentFiles } = get();
+      const updatedFiles = [...currentFiles, ...uploadedFiles];
+      
+      set({ 
+        files: updatedFiles,
+        isLoading: false,
+        error: uploadedFiles.length < files.length ? 
+          `成功上传 ${uploadedFiles.length} 个文件，${files.length - uploadedFiles.length} 个文件上传失败` : 
+          null
+      });
+      
+      // 更新筛选后的文件列表
+      const { getFilteredFiles } = get();
+      set({ filteredFiles: getFilteredFiles() });
+    } catch (error) {
+      console.error('上传文件到API失败:', error);
+      set({ 
+        error: error instanceof Error ? error.message : '上传文件失败',
+        isLoading: false 
       });
     }
   },

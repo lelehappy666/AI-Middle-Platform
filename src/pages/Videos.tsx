@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Grid, List, Filter, SortAsc, SortDesc, Upload, Eye, Download, Trash2, MoreHorizontal, Play, Pause, Volume2, VolumeX, Maximize, Video, Folder } from 'lucide-react';
+import { Grid, List, Filter, SortAsc, SortDesc, Upload, Eye, Download, Trash2, MoreHorizontal, Play, Pause, Volume2, VolumeX, Maximize, Video, Folder, Search } from 'lucide-react';
 import { Layout, PageContainer, PageHeader } from '../components/layout';
 import { Button, Card, CardContent, Modal, Badge, SearchInput, Loading } from '../components/ui';
 import { FolderView } from '../components/FolderView';
@@ -72,17 +72,17 @@ const VideoCard: React.FC<VideoCardProps> = ({
                   </div>
                 )}
                 <video
-                  ref={videoRef}
-                  src={URL.createObjectURL(video.file)}
-                  className={cn(
-                    'w-full h-full object-cover transition-opacity duration-200',
-                    isLoading ? 'opacity-0' : 'opacity-100'
-                  )}
-                  onLoadedData={handleVideoLoad}
-                  onError={handleVideoError}
-                  muted
-                  preload="metadata"
-                />
+                ref={videoRef}
+                src={video.url || URL.createObjectURL(video.file)}
+                className={cn(
+                  'w-full h-full object-cover transition-opacity duration-200',
+                  isLoading ? 'opacity-0' : 'opacity-100'
+                )}
+                onLoadedData={handleVideoLoad}
+                onError={handleVideoError}
+                muted
+                preload="metadata"
+              />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <Button
                     variant="secondary"
@@ -163,7 +163,7 @@ const VideoCard: React.FC<VideoCardProps> = ({
         )}
         <video
           ref={videoRef}
-          src={URL.createObjectURL(video.file)}
+          src={video.url || URL.createObjectURL(video.file)}
           className={cn(
             'w-full h-full object-cover transition-all duration-300',
             isLoading ? 'opacity-0' : 'opacity-100',
@@ -459,7 +459,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({ video, isOpen, onClose }) =
           throw new Error(`File too large: ${video.file.size} bytes (max: ${maxSize})`);
         }
         
-        const url = URL.createObjectURL(video.file);
+        const url = video.url || URL.createObjectURL(video.file);
         
         if (isMounted) {
           currentBlobUrlRef.current = url;
@@ -1169,6 +1169,7 @@ const Videos: React.FC = () => {
     loadFiles,
     addFilesWithProgress,
     addFilesWithFolder,
+    uploadFilesToApi,
     toggleFileSelection,
     selectAllFiles,
     clearSelection,
@@ -1229,10 +1230,32 @@ const Videos: React.FC = () => {
     loadVideoFolders();
   };
 
-  // 初始化加载
+  // 初始化加载 - 每次进入页面时自动刷新数据
   useEffect(() => {
-    loadFiles();
-    loadVideoFolders();
+    const refreshData = async () => {
+      try {
+        await loadFiles();
+        await loadVideoFolders();
+        console.log('视频数据刷新完成');
+      } catch (error) {
+        console.error('视频数据刷新失败:', error);
+      }
+    };
+    
+    refreshData();
+  }, [loadFiles, loadVideoFolders]);
+
+  // 添加页面可见性变化时的自动刷新
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadFiles();
+        loadVideoFolders();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [loadFiles, loadVideoFolders]);
 
   // 监听视图切换
@@ -1242,7 +1265,37 @@ const Videos: React.FC = () => {
     }
   }, [folderView.currentView, loadVideoFolders]);
 
-
+  const handleFileUpload = async () => {
+    try {
+      const files = await selectFiles({
+        types: [{
+          description: 'Videos',
+          accept: {
+            'video/*': ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mkv']
+          }
+        }],
+        multiple: true
+      });
+      
+      if (files.length > 0) {
+        await uploadFilesToApi(files, 'video', (current, total, fileName) => {
+          console.log(`上传进度: ${current}/${total} - ${fileName}`);
+        });
+        
+        // 重新从API加载视频列表
+        await loadFiles();
+        await loadVideoFolders();
+        
+        alert(`成功上传 ${files.length} 个视频到服务器！`);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('用户取消')) {
+        return;
+      }
+      console.error('视频上传失败:', error);
+      alert('视频上传到服务器失败，请重试。');
+    }
+  };
 
   const handleFolderSelect = async () => {
     console.log('🎬 [Videos] handleFolderSelect 开始执行');
@@ -1265,22 +1318,21 @@ const Videos: React.FC = () => {
       });
       
       if (result.files.length > 0) {
-        console.log('🎬 [Videos] 开始添加文件到存储');
-        // 使用带文件夹信息的添加方法
-        await addFilesWithFolder(
+        console.log('🎬 [Videos] 开始上传文件到API服务器');
+        // 使用API上传而不是本地存储
+        await uploadFilesToApi(
           result.files, 
-          result.directoryName, // 使用目录名作为文件夹路径
-          result.directoryName, // 使用目录名作为文件夹名称
+          'video',
           (current, total, fileName) => {
             setFolderProgress({ 
               current, 
               total, 
-              path: `正在处理: ${fileName}` 
+              path: `正在上传: ${fileName}` 
             });
           }
         );
         
-        console.log('🎬 [Videos] 文件添加完成，开始刷新数据');
+        console.log('🎬 [Videos] 文件上传完成，开始刷新数据');
         console.log('🎬 [Videos] 调用 loadFiles()');
         await loadFiles();
         console.log('🎬 [Videos] 调用 loadVideoFolders()');
@@ -1289,7 +1341,7 @@ const Videos: React.FC = () => {
         console.log('🎬 [Videos] 数据刷新完成，当前 folders 状态:', folders);
         console.log('🎬 [Videos] 当前 folderView 状态:', folderView);
         
-        alert(`成功从文件夹 "${result.directoryName}" 加载了 ${result.files.length} 个视频！`);
+        alert(`成功从文件夹 "${result.directoryName}" 上传了 ${result.files.length} 个视频到服务器！`);
       } else {
         console.log('🎬 [Videos] 文件夹中没有找到视频文件');
         alert(`文件夹 "${result.directoryName}" 中没有找到视频文件。`);
@@ -1363,11 +1415,14 @@ const Videos: React.FC = () => {
               )}
               <Button
                 variant="secondary"
-                onClick={handleFolderSelect}
-                disabled={isLoadingFolder}
+                onClick={() => {
+                  loadFiles();
+                  loadVideoFolders();
+                }}
+                disabled={isLoading}
               >
-                <Folder className="w-4 h-4 mr-2" />
-                {isLoadingFolder ? '加载中...' : '选择文件夹'}
+                <Search className="w-4 h-4 mr-2" />
+                刷新
               </Button>
             </div>
           }

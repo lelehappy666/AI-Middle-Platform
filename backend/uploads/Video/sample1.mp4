@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480">
+  <rect width="640" height="480" fill="#2c3e50"/>
+  <polygon points="240,180 240,300 360,240" fill="#ecf0f1"/>
+  <text x="320" y="350" text-anchor="middle" font-family="Arial" font-size="20" fill="#ecf0f1">示例视频 1</text>
+  <text x="320" y="380" text-anchor="middle" font-family="Arial" font-size="14" fill="#bdc3c7">MP4 格式</text>
+</svg>

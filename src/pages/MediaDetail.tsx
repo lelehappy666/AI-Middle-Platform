@@ -59,7 +59,7 @@ const ImageViewer: React.FC<MediaViewerProps> = ({ file }) => {
     }
     
     try {
-      const url = URL.createObjectURL(file.file);
+      const url = file.url || URL.createObjectURL(file.file);
       console.log('Debug: Generated blob URL:', url);
       // 添加时间戳确保浏览器不使用缓存
       const urlWithTimestamp = `${url}?t=${Date.now()}`;
@@ -376,7 +376,7 @@ const VideoViewer: React.FC<MediaViewerProps> = ({ file }) => {
           
           <video
             ref={videoRef}
-            src={URL.createObjectURL(file.file)}
+            src={file.url || URL.createObjectURL(file.file)}
             className="relative block w-full h-full object-contain rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl border border-white/10 sm:border-2"
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}

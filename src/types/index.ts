@@ -20,6 +20,8 @@ export interface MediaFile {
   dimensions?: { width: number; height: number };
   folderPath?: string; // 文件夹路径
   folderName?: string; // 文件夹名称
+  url?: string; // API文件的访问URL
+  isFromApi?: boolean; // 标记是否来自API
 }
 
 // 媒体库接口

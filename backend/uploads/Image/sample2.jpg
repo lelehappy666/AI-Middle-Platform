@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+  <rect width="400" height="300" fill="#ffe4e1"/>
+  <rect x="100" y="75" width="200" height="150" fill="#ff6b6b" rx="10"/>
+  <text x="200" y="250" text-anchor="middle" font-family="Arial" font-size="18" fill="#333">示例图片 2</text>
+</svg>
